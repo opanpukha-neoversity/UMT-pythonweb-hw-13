@@ -1,0 +1,17 @@
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+sqlalchemy==2.0.43
+psycopg2-binary==2.9.10
+pydantic==2.11.9
+pydantic-settings==2.10.1
+email-validator==2.3.0
+python-jose[cryptography]==3.5.0
+pwdlib==0.3.0
+python-multipart==0.0.20
+redis==6.4.0
+cloudinary==1.44.1
+pytest==8.4.2
+pytest-cov==7.0.0
+fakeredis==2.31.1
+httpx==0.28.1
+sphinx==8.0.0
