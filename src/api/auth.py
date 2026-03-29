@@ -83,23 +83,80 @@ def forgot_password(body: PasswordResetRequest, db: Session = Depends(get_db)):
 
     repo = UserRepository(db)
     user = repo.get_by_email(body.email)
+
     if user:
-        token = auth_service.create_reset_token(user.email)
+        token = auth_service.create_reset_token(user.email, user.hashed_password)
         try:
             email_service.send_reset_email(user.email, token)
         except Exception:
             pass
     return {'message': 'If that email exists, a reset message has been sent'}
 
+@router.get('/reset-password/{token}')
+def verify_reset_password_token(token: str, db: Session = Depends(get_db)):
+    """Validate password reset token before confirming password change."""
 
-@router.post('/reset-password')
-def reset_password(body: PasswordResetConfirm, db: Session = Depends(get_db)):
-    """Accept a reset token and replace the stored password hash."""
+    payload = auth_service.decode_token(token)
 
-    email = auth_service.get_email_from_token(body.token, 'reset')
+    if payload.get('scope') != 'reset':
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Invalid token scope',
+        )
+
+    email = payload.get('sub')
+    if email is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Invalid token payload',
+        )
+
     repo = UserRepository(db)
     user = repo.get_by_email(email)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='User not found',
+        )
+
+    auth_service.verify_reset_token(token, user.hashed_password)
+
+    return {'message': 'Reset token is valid'}
+
+@router.post('/reset-password')
+def reset_password(body: PasswordResetConfirm, db: Session = Depends(get_db)):
+    """Accept a reset token, validate it and replace the stored password hash."""
+
+    payload = auth_service.decode_token(body.token)
+
+    if payload.get('scope') != 'reset':
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Invalid token scope',
+        )
+
+    email = payload.get('sub')
+    if email is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Invalid token payload',
+        )
+
+    repo = UserRepository(db)
+    user = repo.get_by_email(email)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='User not found',
+        )
+
+    auth_service.verify_reset_token(body.token, user.hashed_password)
+
+    if auth_service.verify_password(body.new_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='New password must be different from the current password',
+        )
+
     repo.update_password(user, auth_service.get_password_hash(body.new_password))
     return {'message': 'Password updated successfully'}

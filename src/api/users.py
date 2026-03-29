@@ -9,7 +9,7 @@ from src.database.models import User
 from src.database.db import get_db
 from sqlalchemy.orm import Session
 from src.repository.users import UserRepository
-from src.schemas import UserResponse
+from src.schemas import UserResponse, UserRoleUpdate
 from src.services.auth import get_current_user, require_admin
 from src.services.cache import get_redis_client, user_cache_key
 from src.services.cloudinary_service import cloudinary_service
@@ -67,3 +67,28 @@ def update_default_avatar(
     user = UserRepository(db).update_avatar(current_user, avatar_url)
     get_redis_client().delete(user_cache_key(user.id))
     return user
+
+@router.patch(
+    '/{user_id}/role',
+    response_model=UserResponse,
+    dependencies=[Depends(require_admin)],
+)
+def change_user_role(
+    user_id: int,
+    body: UserRoleUpdate,
+    db: Session = Depends(get_db),
+):
+    """Allow only admins to change another user's role."""
+
+    repo = UserRepository(db)
+    user = repo.get_by_id(user_id)
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='User not found',
+        )
+
+    updated_user = repo.update_role(user, body.role)
+    get_redis_client().delete(user_cache_key(updated_user.id))
+    return updated_user

@@ -82,6 +82,10 @@ class UserResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class UserRoleUpdate(BaseModel):
+    """Payload used by admins to change a user's role."""
+
+    role: UserRole
 
 class Token(BaseModel):
     """JWT access token response."""
