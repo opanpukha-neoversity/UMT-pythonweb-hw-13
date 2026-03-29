@@ -53,10 +53,10 @@ class AuthService:
 
         return self._create_token({'sub': user_email, 'scope': 'verify'}, settings.verify_token_expire_minutes)
 
-    def create_reset_token(self, user_email: str) -> str:
+    def create_reset_token(self, user_email: str, password_hash: str) -> str:
         """Create a short-lived password reset token."""
 
-        return self._create_token({'sub': user_email, 'scope': 'reset'}, settings.reset_token_expire_minutes)
+        return self._create_token({'sub': user_email, 'scope': 'reset', 'pwd': password_hash}, settings.reset_token_expire_minutes)
 
     def decode_token(self, token: str) -> dict:
         """Decode and validate a JWT token payload."""
@@ -73,6 +73,32 @@ class AuthService:
         if payload.get('scope') != expected_scope or payload.get('sub') is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token scope')
         return payload['sub']
+
+    def verify_reset_token(self, token: str, password_hash: str) -> str:
+        """Validate a reset token, ensure it matches current password hash and return email."""
+
+        payload = self.decode_token(token)
+
+        if payload.get('scope') != 'reset':
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail='Invalid token scope',
+            )
+
+        email = payload.get('sub')
+        if email is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail='Invalid token payload',
+            )
+
+        if payload.get('pwd') != password_hash:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail='Reset token is no longer valid',
+            )
+
+        return email
 
 
 auth_service = AuthService()
